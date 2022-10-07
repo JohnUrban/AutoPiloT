@@ -1,0 +1,270 @@
+#!/bin/bash
+# exit when any command fails
+set -e
+#################################################################
+
+
+export VERSION=0.0.1
+if [ $# -eq 1 ]; then if [ $1 == "--version" ]; then echo "$( basename ${0} ) version ${VERSION}, 20221007" ; exit ; fi ; fi
+
+export SCRIPTDIR=$( dirname $0 )
+export UTILS=${SCRIPTDIR}/utils
+export PILONFXNS=${UTILS}/pilon-functions.txt
+export PILONJAR=${UTILS}/pilon-1.24.jar		## Provided but user will still have option to specify diff path.
+export PIC=${UTILS}/picard.jar			## Provided but user will still have option to specify diff path.
+export PATH=${UTILS}:${PATH}
+
+#########################################################################################################
+## HELP FUNCTION
+#########################################################################################################
+function help {
+  echo "
+	AutoPiloT : Automated Pilon Tool.
+
+	Usage: 
+		$( basename ${0} ) -i asm.fofn -1 R1 -2 R2 [options t:r:m:Q:q:f:F:J:ST:M:v]
+
+	Quick Start:
+		$( basename ${0} ) -i asm.fofn -1 R1 -2 R2
+
+
+        Options:
+
+        -i      FOFN	: Required.
+        -1      R1	: Required.
+	-2	R2	: Required.
+	-t	THREADS	: Default = 2.
+	-r	ROUNDS	: Default = 3.
+	-m	MAXFRAG	: Default = 600.
+	-Q	MINMAPQ	: Default = 20.
+	-q	MINBQ	: Default = 20.
+	-f	FLANK	: Default = 10.
+	-F	MAPFXN	: Default = bowtie2_PE_endtoend_veryfast_concordant_frags_mapqfilt .
+			Available Values are:
+			+ bowtie2_PE_endtoend_veryfast_concordant_frags_mapqfilt (default)
+			# bowtie2_PE_endtoend_veryfast_concordant_frags_mapqfilt,
+			# bowtie2_PE_endtoend_ultra_sensitive_concordant_frags_mapqfilt
+			# bowtie2_PE_local_veryfast_concordant_frags_mapqfilt
+			# bowtie2_PE_local_verysensitive_concordant_frags_mapqfilt
+			# bwa_mem_standard_concordant_frags_mapqfilt
+			Recommendation: 
+			- With long reads now high accuracy, resulting long read assemblies are already >QV20 after assembly.
+			- Short read polishing is less important now than it was when long reads were noisy, but they still help.
+			- The best way to use short reads now is conservatively.
+			- That is to use only high confident mappings, and only the high confidence bases (e.g. MAPQ>20, BQ>20)
+			- It also means to use only concordantly mapped paired reads (if reads are paired, and they should be).
+				- And not to use discordantly mapped reads, orphaned reads, strays, etc.
+			- In addition, it means we should require reads to map end-to-end, and not use split reads.
+				- Adapters are typically pre-trimmed by Illumina software these days, but if not, chuck the read.
+			- Finally, my testing suggests little difference between --very-fast vs --very-sensitive parameters in bowtie2 mapping.
+			- But any difference favors --very-fast. This may be b/c there are fewer reads force-mapped to the wrong spot.
+			- It may also be b/c fewer alternative mappings are found, resulting in higher MAPQ and fewer reads lost to filtering MAPQ.
+			- All Bowtie2 functions seem to do better than the BWA one.
+			- Endtoend mode does better than local mode.
+			- --very-fast and --very-sensitive do mostly the same.
+			- Hence the default: bowtie2_PE_endtoend_veryfast_concordant_frags_mapqfilt
+	-J	PILONKX	: Default = 8G.
+	-S	SLURM	: Use to launch SLURM batch scripts (one per assembly in FOFN) instead of processing serially in current env. Default = false.
+	-T	TIME	: Time limit for SLURM. Default = 24:00:00 .
+	-M	MEM	: Mem limit for SLURM. Default = 30G .
+	-v	VERBOSE	: Default = false.
+"
+}
+
+
+
+#########################################################################################################
+## FIND DEPENDENCIES
+#########################################################################################################
+
+export BT2=$( which bowtie2 )
+export BUILD=$( which bowtie2-build )
+export BWA=$( which bwa )
+export SAMTOOLS=$( which samtools )
+export PY3=$( which python3 )
+for VAR in BT2 BWA SAMTOOLS PY3 ; do echo -e "${VAR}\t${!VAR}" ; done
+if [ -z ${BT2} ] && [ -z ${BWA} ]; then echo "Please put either bowtie2, bwa, or both in your PATH. Then retry. Example: export PATH=/path/to/bowtie2folder/:/path/to/bwafolder/:\${PATH}" ; exit ; fi
+if [ -z ${SAMTOOLS} ]; then echo "Please put samtools in your PATH. Then retry. Example: export PATH=/path/to/samtools/bin/:\${PATH}" ; exit ; fi
+if [ -z ${PY3} ]; then echo "Please put python3 in your PATH. Then retry. Perhaps install python3 conda environment with \"conda create -n py3 python=3\" ; exit ; fi
+
+
+
+
+
+## HELP CATCH NO ARGS
+###################################################################################################################################################################################
+if [ $# -eq 0 ]; then help ; exit ; fi
+###################################################################################################################################################################################
+
+
+
+##############################################################################
+## DEFAULTS
+##############################################################################
+export FOFN=""
+export R1=""
+export R2=""
+###export G=	# seq sizes file (i.e. genome file in bedtools-speak)
+
+export THREADS=2
+export P=2
+
+export CLEAN=true
+export ROUNDS=3
+export MAXFRAG=600
+export MINMAPQ=20
+export MINBQ=20
+export FLANK=10
+if [ ! -z ${BT2} ]; then export MAPPER=bowtie2 ; elif [ ! -z ${BWA} ]; then MAPPER=bwa ; fi 	## QC-check above would prevent both being empty.
+export MODE=default	## defaults to endtoend for bowtie2, bwa has single mode
+export SEARCH=default	## defaults to --very-fast for bowtie2 (vf), bwa has single mode 
+export PILONFXN=diploid_pilon_PE_nostrays
+export PILONJX=8G
+
+export MAIN=polish
+export BAMDIR=bam
+export BDGDIR=bedgraph
+export BWDIR=bigwig
+
+export SLURM=false	## if true, THREADS or P also used for NTASKS
+export TIME=24:00:00	## SLURM option
+export MEM=30G		## SLURM option
+
+
+export DEBUG=true
+export CONTINUE=true
+export HELP=false
+export VERBOSE=false
+
+export ALLVARS=""
+
+export MAPFXN=bowtie2_PE_endtoend_veryfast_concordant_frags_mapqfilt
+
+##############################################################################
+## GET OPTS
+##############################################################################
+while getopts "i:1:2:t:r:m:Q:q:f:F:J:ST:M:v" arg; do
+    case $arg in
+        i) export FOFN=${OPTARG} ;;
+        1) export R1=${OPTARG} ; export PAIRED=true ;; 
+        2) export R2=${OPTARG} ; export PAIRED=true ;; 
+        t) export THREADS=${OPTARG} ; export P=${OPTARG} ;;	
+        r) export ${ROUNDS}=${OPTARG} ;;
+        m) export MAXFRAG=${OPTARG} ;;
+        Q) export MINMAPQ=${OPTARG} ;;
+        q) export MINBQ=${OPTARG} ;;
+        f) export FLANK=${OPTARG} ;;
+	F) export MAPFXN=${OPTARG} ;;
+        J) export PILONJX=${OPTARG} ;;
+        S) export SLURM=true ;;
+        T) export TIME=${OPTARG} ;;
+        M) export MEM=${OPTARG} ;;
+        v) export VERBOSE=true ;;
+        *) help; exit;;
+    esac
+done
+
+
+
+#TODO
+#        U) export R1=${OPTARG} ; export PAIRED=false ;; 
+#        b) export MAPPER=bowtie2 ;; 	## FORCE USE OF
+#        B) export MAPPER=bwa ;;		## FORCE USE OF
+#        L) export MODE=local ;;
+#        s) export SEARCH=${OPTARG} ;;	## vf, vs, us (very fast, very sensitive, ultra sensitive )
+
+
+
+#########################################################################################################
+## INTERPRET CMDLINE ARGS
+#########################################################################################################
+
+for VAR in FOFN R1 R2 ; do echo -e "${VAR}\t${!VAR}" ; if [ -z ${!VAR} ]; then echo "${VAR} required. Exiting.... " ; echo ; help ; exit ; fi ; done
+
+function write_script {
+  echo "#!/bin/bash
+export VERSION=${VERSION}
+export SCRIPTDIR=${SCRIPTDIR}
+export UTILS=${UTILS}
+export PILONFXNS=${PILONFXNS}
+export PILONJAR=${PILONJAR}
+export PIC=${PIC}
+export PATH=${PATH}
+export BT2=${BT2}
+export BUILD=${BUILD}
+export BWA=${BWA}
+export SAMTOOLS=${SAMTOOLS}
+export PY3=${PY3}
+export FOFN=${FOFN}
+export R1=${R1}
+export R2=${R2}
+export THREADS=${THREADS}
+export P=${THREADS}
+export CLEAN=${CLEAN}
+export ROUNDS=${ROUNDS}
+export MAXFRAG=${MAXFRAG}
+export MINMAPQ=${MINMAPQ}
+export MINBQ=${MINBQ}
+export FLANK=${FLANK}
+export MAPPER=${MAPPER}
+export MODE=${MODE}
+export SEARCH=${SEARCH}
+export PILONFXN=${PILONFXN}
+export PILONJX=${PILONJX}
+export MAIN=${MAIN}
+export BAMDIR=${BAMDIR}
+export DEBUG=${DEBUG}
+export CONTINUE=${CONTINUE}
+export VERBOSE=${VERBOSE}
+export MAPFXN=${MAPFXN}
+export PRE=${PRE}
+export SUBDIR=${SUBDIR}
+export ASM=${ASM}
+  
+generic_pilon_polishing_routine_iterator
+"
+}
+
+
+
+## CHECK NCOLS in FOFN
+NVALS=$( awk '{print NF}' ${FOFN} | sort -u | wc -l )
+if [ $NVALS -ne 1 ]; then echo "FOFN had lines with differing numbers of fields. This may cause unexpected results or a crash. It may not." ; fi
+NCOLS=$( awk '{print NF}' ${FOFN} | sort -nr -u | head -n 1 ) 
+if [ $NCOLS -ne 2 ] && [ $NCOLS -ne 3 ]; then echo "Estimating FOFN type failed. FOFN should have either 2 or 3 columns. Erase lines that may be causing this error." ; exit ; fi
+
+
+MAINWD=${PWD}
+echo "MAIN WD: " ${MAINWD}
+SCRIPT=autogenerated-pilon-pipeline.sh
+
+while read line ; do
+  ARR=($( echo $line ) )
+  if [ $NCOLS -eq 2 ]; then
+    PRE=${ARR[0]}
+    ASM=${ARR[1]}
+    echo ${PRE} ${ASM}
+    SUBDIR=${PRE}
+  elif [ $NCOLS -eq 3 ]; then
+    GROUP=${ARR[0]}
+    PRE=${ARR[1]}
+    ASM=${ARR[2]}
+    echo ${GROUP} ${PRE} ${ASM}
+    SUBDIR=${GROUP}/${PRE}
+  else
+     echo "This message should never be seen. It suggests something went wrong in NCOLS stage..." ; exit
+  fi
+
+  mkdir -p ${SUBDIR} && cd ${SUBDIR}
+  
+  write_script > ${SCRIPT}
+
+  if ${SLURM} ; then
+    sbatch --time=${TIME} --mem=${MEM} --nodes=1 --ntasks=${THREADS} -J pilon-${PRE} -o slurm-pilon-${PRE}-%A.out --export=ALL ${SCRIPT}
+  else
+    bash ${SCRIPT}
+  fi
+
+
+  cd ${MAINWD}
+done < ${FOFN}

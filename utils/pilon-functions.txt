@@ -1,0 +1,434 @@
+## DEPENDENCIES:
+## In PATH: bowtie2/bowtie2-build OR bwa ; samtools 
+## JAR files: picard, pilon
+
+#bowtie2_PE_endtoend_ultra_sensitive_concordant_frags_mapqfilt 
+
+function env_report {
+  DATE=$( date | awk '{gsub(":","_"); gsub(" ","-"); print}' )
+  env > env-${DATE}.txt
+}
+
+
+function errcho {
+  echo ${@} 1>&2
+}
+
+
+function pause {  
+  MAX_JOBS=${1}
+  NJOBS=${2}
+  if [ $NJOBS -ge ${MAX_JOBS} ]; then echo true ; else echo false ; fi
+}
+
+function pause_job_launches {
+    if [ -z $MAX_SIMULTANEOUS_JOBS ]; then MAX_SIMULTANEOUS_JOBS=2 ; fi
+    if [ -z $SLEEP_WAIT_TIME ]; then SLEEP_WAIT_TIME=10 ; fi
+    N=$( jobs | wc -l )
+    while $( pause ${MAX_SIMULTANEOUS_JOBS} ${N} ) ; do 
+      ## debug: errcho $MAX_SIMULTANEOUS_JOBS $SLEEP_WAIT_TIME $N
+      sleep ${SLEEP_WAIT_TIME} ; 
+      N=$( jobs | wc -l )
+      jobs > /dev/null ## For some reason, calling "jobs" is necessary inside this function. It wasn't when I just had a while loop written in each individual function: 
+    done ## Only keep MAX_SIMULTANEOUS_JOBS jobs at most going at a time
+}
+
+
+
+
+
+
+
+
+
+
+######################################################################
+#######  MAPPING   #####################################################
+######################################################################
+function bowtie2_PE_endtoend_ultra_sensitive_concordant_frags_mapqfilt {
+  ## ASSUMES ALL VARIABLES IN ENV -- Except any ADDITIONAL_PARAMETERS not specified
+  ## MAXFRAG=${1}
+  ## Q=${2}
+  ADDITIONAL_PARAMETERS="${@:2}"
+  #${BT2} --maxins 600 -p ${P} --end-to-end -q -D 500 -R 3 -N 0 -L 19 -i C,1,0 -x ${BT2IDX} -1 ${R1} -2 ${R2} ${ADDITIONAL_PARAMETERS} 2> ${ERR} | samtools view -bh -F4 -f3 -q 2 | samtools sort -@ ${P} -T ${OUTBASE} 2>> ${ERR} > ${BAM}
+  errcho "${BT2} --maxins ${MAXFRAG} -p ${P} --end-to-end -q -D 500 -R 3 -N 0 -L 19 -i C,1,0 -x ${BT2IDX} -1 ${R1} -2 ${R2} ${ADDITIONAL_PARAMETERS} | samtools view -bh -F4 -f3 -q ${MINMAPQ} | samtools sort -@ ${P} -T ${OUTBASE}"
+  ${BT2} --maxins ${MAXFRAG} -p ${P} --end-to-end -q -D 500 -R 3 -N 0 -L 19 -i C,1,0 -x ${BT2IDX} -1 ${R1} -2 ${R2} ${ADDITIONAL_PARAMETERS} | samtools view -bh -F4 -f3 -q ${MINMAPQ} | samtools sort -@ ${P} -T ${OUTBASE}
+}
+
+
+
+
+function bowtie2_PE_endtoend_verysensitive_concordant_frags_mapqfilt {
+  ## ASSUMES ALL VARIABLES IN ENV -- Except any ADDITIONAL_PARAMETERS not specified
+  ## MAXFRAG=${1}
+  ## MINMAPQ=${2}
+  ADDITIONAL_PARAMETERS="${@:2}"
+  ## Trying --very-fast (-D 5 -R 1 -N 0 -L 22 -i S,0,2.50) b/c it somewhat implicitly removes poor reads; 
+  ## The more similar to current consensus seq, the more likely it is to map; 
+  ## This could bias it too much to the current consensus sequence though....
+  errcho "${BT2} --maxins ${MAXFRAG} -p ${P} --end-to-end -q --very-sensitive -x ${BT2IDX} -1 ${R1} -2 ${R2} ${ADDITIONAL_PARAMETERS} | samtools view -bh -F4 -f3 -q ${MINMAPQ} | samtools sort -@ ${P} -T ${OUTBASE}"
+  ${BT2} --maxins ${MAXFRAG} -p ${P} --end-to-end -q --very-sensitive -x ${BT2IDX} -1 ${R1} -2 ${R2} ${ADDITIONAL_PARAMETERS} | samtools view -bh -F4 -f3 -q ${MINMAPQ} | samtools sort -@ ${P} -T ${OUTBASE}
+}
+
+function bowtie2_PE_endtoend_veryfast_concordant_frags_mapqfilt {
+  ## ASSUMES ALL VARIABLES IN ENV -- Except any ADDITIONAL_PARAMETERS not specified
+  ## MAXFRAG=${1}
+  ## MINMAPQ=${2}
+  ADDITIONAL_PARAMETERS="${@:2}"
+  ## Trying --very-fast (-D 5 -R 1 -N 0 -L 22 -i S,0,2.50) b/c it somewhat implicitly removes poor reads; 
+  ## The more similar to current consensus seq, the more likely it is to map; 
+  ## This could bias it too much to the current consensus sequence though....
+  errcho "${BT2} --maxins ${MAXFRAG} -p ${P} --end-to-end -q --very-fast -x ${BT2IDX} -1 ${R1} -2 ${R2} ${ADDITIONAL_PARAMETERS} | samtools view -bh -F4 -f3 -q ${MINMAPQ} | samtools sort -@ ${P} -T ${OUTBASE}"
+  ${BT2} --maxins ${MAXFRAG} -p ${P} --end-to-end -q --very-fast -x ${BT2IDX} -1 ${R1} -2 ${R2} ${ADDITIONAL_PARAMETERS} | samtools view -bh -F4 -f3 -q ${MINMAPQ} | samtools sort -@ ${P} -T ${OUTBASE}
+}
+
+
+
+
+
+
+function bowtie2_PE_local_verysensitive_concordant_frags_mapqfilt {
+  ## ASSUMES ALL VARIABLES IN ENV -- Except any ADDITIONAL_PARAMETERS not specified
+  ## MAXFRAG=${1}
+  ## MINMAPQ=${2}
+  ADDITIONAL_PARAMETERS="${@:2}"
+  ## Trying --very-fast (-D 5 -R 1 -N 0 -L 22 -i S,0,2.50) b/c it somewhat implicitly removes poor reads; 
+  ## The more similar to current consensus seq, the more likely it is to map; 
+  ## This could bias it too much to the current consensus sequence though....
+  ## --soft-clipped-unmapped-tlen .... not sure if this parameter will cause an error in pilon or not yet.....
+  errcho "${BT2} --maxins ${MAXFRAG} -p ${P} -q --very-sensitive-local --soft-clipped-unmapped-tlen -x ${BT2IDX} -1 ${R1} -2 ${R2} ${ADDITIONAL_PARAMETERS} | samtools view -bh -F4 -f3 -q ${MINMAPQ} | samtools sort -@ ${P} -T ${OUTBASE}"
+  ${BT2} --maxins ${MAXFRAG} -p ${P} -q --very-sensitive-local --soft-clipped-unmapped-tlen -x ${BT2IDX} -1 ${R1} -2 ${R2} ${ADDITIONAL_PARAMETERS} | samtools view -bh -F4 -f3 -q ${MINMAPQ} | samtools sort -@ ${P} -T ${OUTBASE}
+}
+
+function bowtie2_PE_local_veryfast_concordant_frags_mapqfilt {
+  ## ASSUMES ALL VARIABLES IN ENV -- Except any ADDITIONAL_PARAMETERS not specified
+  ## MAXFRAG=${1}
+  ## MINMAPQ=${2}
+  ADDITIONAL_PARAMETERS="${@:2}"
+  ## Trying --very-fast (-D 5 -R 1 -N 0 -L 22 -i S,0,2.50) b/c it somewhat implicitly removes poor reads; 
+  ## The more similar to current consensus seq, the more likely it is to map; 
+  ## This could bias it too much to the current consensus sequence though....
+  ## --soft-clipped-unmapped-tlen .... not sure if this parameter will cause an error in pilon or not yet.....
+  errcho "${BT2} --maxins ${MAXFRAG} -p ${P} -q --very-fast-local --soft-clipped-unmapped-tlen -x ${BT2IDX} -1 ${R1} -2 ${R2} ${ADDITIONAL_PARAMETERS} | samtools view -bh -F4 -f3 -q ${MINMAPQ} | samtools sort -@ ${P} -T ${OUTBASE}"
+  ${BT2} --maxins ${MAXFRAG} -p ${P} -q --very-fast-local --soft-clipped-unmapped-tlen -x ${BT2IDX} -1 ${R1} -2 ${R2} ${ADDITIONAL_PARAMETERS} | samtools view -bh -F4 -f3 -q ${MINMAPQ} | samtools sort -@ ${P} -T ${OUTBASE}
+}
+
+function bwa_mem_standard_concordant_frags_mapqfilt {
+  ## ASSUMES ALL VARIABLES IN ENV -- Except any ADDITIONAL_PARAMETERS not specified
+  ## MAXFRAG=${1}
+  ## MINMAPQ=${2}
+  ADDITIONAL_PARAMETERS="${@:2}"
+  ## In futurue for pilon, may want to try bwa with -M...., and filrering with -F2308 instead of -F4 (to filter unmapped, seconary, and supplemental alignments).....
+  ${BWA} mem -t ${P} ${ADDITIONAL_PARAMETERS} ${BWAIDX} ${R1} ${R2} | samtools view -bh -F4 -f3 -q ${MINMAPQ} | samtools sort -@ ${P} -T ${OUTBASE}
+}
+
+
+
+
+
+
+#########################################################################
+###  DUPLICATE FILTERING ################################################
+#########################################################################
+
+function picMkDupFxn {
+  ## Assumes in env: PIC, TMPDIR, BAM, OUTBASE
+  java -Djava.io.tmpdir=${TMPDIR} -jar ${PIC} MarkDuplicates --REMOVE_SEQUENCING_DUPLICATES true --ASSUME_SORTED true -I ${BAM} -O ${OUTBASE}.mkdup.bam -M ${OUTBASE}-metrics.txt 2> ${OUTBASE}.err.txt 
+}
+
+function picMkDup {
+  ## Assumes in env: PIC
+  ## EXAMPLE ARGS:
+  ##    fxn_name ${OUTDIR} ${BAMDIR}/*.bam
+  ##    fxn_name ${OUTDIR} ${CLEANBAMDIR}/*.bam
+  ##    fxn_name ${OUTDIR} */*.bam
+  OUTDIR=${1}
+  BAMFILES="${@:2}"
+  TMPDIR=tmpdir_clean_it_${RANDOM}
+
+  mkdir -p ${TMPDIR}
+  mkdir -p ${OUTDIR}
+
+  for BAM in ${BAMFILES} ; do
+    PRE=$( basename $BAM .bam ) 
+    OUTBASE=${OUTDIR}/${PRE}		## ${CLEANBAMDIR} used to be hard-coded here.
+    echo $BAM
+    #java -Djava.io.tmpdir=${TMPDIR} -jar ${PIC} MarkDuplicates --REMOVE_SEQUENCING_DUPLICATES true --ASSUME_SORTED true -I ${BAM} -O ${OUTBASE}.mkdup.bam -M ${OUTBASE}-metrics.txt 2> ${OUTBASE}.err.txt 
+    picMkDupFxn
+  done
+  wait
+  rm -r ${TMPDIR}
+}
+
+
+
+#########################################################################
+###  PILON POLISHING   ##################################################
+#########################################################################
+
+
+## BWTIE MAP NOTES
+  ## 2x300 bp MiSeq reads... targeted insert size was 600, but its more like 300. Will allow it to be considered concordant up to 600 (rather than 500). A tiny percent will be longer anyway.
+  ## Tempted to add "--dovetail" ...
+  ##	I believe dovetailing is a real possibility when doing 300 bp frags with 2x300 bp reads.
+  ##	However, also more conservative to just exclude.... 
+  ## Tempted to add "--no-discordant --no-mixed", but may be better to do that after; so it doesn't affect mapping stats.
+  ## I planned to tell Pilon to use only concordant paired reads with MAPQ >= 30; 
+  ##	so I can just keep the BAM smaller here by exluding all unampped/orphaned reads, discordant pairs, and mappings with MQ<30.
+  ## Trying --very-fast (-D 5 -R 1 -N 0 -L 22 -i S,0,2.50) b/c it somewhat implicitly removes poor reads; 
+  ## The more similar to current consensus seq, the more likely it is to map; 
+  ## This could bias it too much to the current consensus sequence though....
+
+function generic_pilon_PE {
+  ## VARS EXPECTING IN ENV: PILONJX,  PILONJAR, INPUTSEQ, FRAGS, OUTPRE, PILONDIR, FIX (bases), FLANK (10), MINMAPQ, MINBQ
+  ADDITIONAL_FLAGS=${@}	## --changes --vcf --diploid --nostrays
+  echo "java -Xmx${PILONJX} -jar ${PILONJAR} ${ADDITIONAL_FLAGS} --genome ${INPUTSEQ} --frags ${FRAGS} --output ${OUTPRE} --outdir ${PILONDIR} --fix ${FIX} --flank ${FLANK} --minmq ${MINMAPQ} --minqual ${MINBQ} 2> ${PILONDIR}/${OUTPRE}-pilon-err.txt 1> ${PILONDIR}/${OUTPRE}-pilon-out.txt" >> ${PILONDIR}/commands-pilon-err.txt
+  java -Xmx${PILONJX} -jar ${PILONJAR} ${ADDITIONAL_FLAGS} --genome ${INPUTSEQ} --frags ${FRAGS} --output ${OUTPRE} --outdir ${PILONDIR} --fix ${FIX} --flank ${FLANK} --minmq ${MINMAPQ} --minqual ${MINBQ} 2> ${PILONDIR}/${OUTPRE}-pilon-err.txt 1> ${PILONDIR}/${OUTPRE}-pilon-out.txt
+}
+
+
+
+function standard_pilon_PE_nostrays {
+  ## VARS EXPECTING IN ENV: PILONJX,  PILONJAR, INPUTSEQ, FRAGS, OUTPRE, PILONDIR, FIX (bases), FLANK (10), MINMAPQ, MINBQ
+  generic_pilon_PE --changes --vcf --nostrays
+}
+
+function diploid_pilon_PE_nostrays {
+  ## VARS EXPECTING IN ENV: PILONJX,  PILONJAR, INPUTSEQ, FRAGS, OUTPRE, PILONDIR, FIX (bases), FLANK (10), MINMAPQ, MINBQ
+  generic_pilon_PE --changes --vcf --diploid --nostrays
+}
+
+
+
+
+
+
+function run_pilon_loop_on_split_asm {
+  ## RESET IF NEED BE
+  if [ -f ${PILONDIR}/commands-pilon-err.txt ] ; then rm ${PILONDIR}/commands-pilon-err.txt ; fi
+  #### Pilon process contigs individually, optionally put in bg here for parallelization, and optionally use pause to limit njobs.
+  for INPUTSEQ in ${SPLITASMDIR}/*.fa ; do
+    OUTPRE=$( basename ${INPUTSEQ} .fa )
+    FRAGS=${CLEANBAM}
+    ${PILONFXN}
+
+    #while $( pause 1 $( jobs | wc -l ) ) ; do sleep 10 ; done ## Only keep 8 jobs at most going at a time
+  done
+}
+
+
+
+
+
+function dothisstep {
+  FILE=${1}
+  DOTHISSTEP=true
+  if ${CONTINUE} ; then if [ -f ${FILE} ]; then DOTHISSTEP=false ; fi ; fi
+  echo ${DOTHISSTEP}
+}
+
+
+
+
+function update_progress {
+  date >> ${PROGRESS}
+  echo ${@} >> ${PROGRESS}
+}
+
+function generic_pilon_polishing_routine {
+  ## Only argument is name of top level outdir (e.g. polish/round_1 ) 
+  ## Else assumes a lot in the ENV
+  ## PRE, R1, and R2 as it would be in read_map_loop (e.g. instead of putting in 3-col FOFN, will already be in ENV).
+  ## ASM,BT2IDX,P, in ENV
+  ROUNDDIR=${1}
+  BAMDIR=${ROUNDDIR}/bam
+  PILONDIR=${ROUNDDIR}/pilon
+  CLEANBAMDIR=${ROUNDDIR}/cleanbam
+  SPLITASMDIR=${ROUNDDIR}/asminput
+
+  BAM=${BAMDIR}/reads.bam
+  CLEANBAM=${CLEANBAMDIR}/reads.mkdup.bam
+  MAPERR=${BAMDIR}/map.txt
+  PROGRESS=${ROUNDDIR}/progress.txt
+
+  #### Execute
+  #### PREP
+  mkdir -p ${BAMDIR} ${CLEANBAMDIR} ${PILONDIR} ${SPLITASMDIR}
+  #### IF BT2IDX NEEDED, MAKE
+  update_progress bt2idx  
+  if ${MAKEBT2IDX} ; then 
+    BT2DIR=${ROUNDDIR}/bt2idx
+    BT2IDX=${BT2DIR}/asm
+    mkdir -p ${BT2DIR}
+    TOUCHFILE=${ROUNDDIR}/bt2-build.done
+    if $( dothisstep ${TOUCHFILE} ) ; then
+      if [ ${MAPFXN::7} == "bowtie2" ]; then 
+        echo "${BT2}-build ${ASM} ${BT2IDX} 2> ${BT2DIR}/err.txt 1> ${BT2DIR}/out.txt" > ${BT2DIR}/command.txt; 
+        ${BT2}-build ${ASM} ${BT2IDX} 2> ${BT2DIR}/err.txt 1> ${BT2DIR}/out.txt ; 
+      elif [ ${MAPFXN::3} == "bwa" ]; then
+        ## 20220814 - since BWA was added on later, it is inheriting BT2-style names; I can clean this up later for more generic names.
+        echo "${BWA} index -p ${BT2IDX} ${ASM} 2> ${BT2DIR}/err.txt 1> ${BT2DIR}/out.txt" > ${BT2DIR}/command.txt
+        ${BWA} index -p ${BT2IDX} ${ASM} 2> ${BT2DIR}/err.txt 1> ${BT2DIR}/out.txt ;
+      else 
+        echo "Unrecognized MAPFXN for deciding how to build a genome index..." ; exit
+      fi
+      touch  ${TOUCHFILE}
+    fi
+  fi 
+  #### MAP
+  update_progress bt2 map
+  OUTBASE=${BAMDIR}/reads	#OUTBASE=reads
+  TOUCHFILE=${ROUNDDIR}/bt2-map.done
+  if $( dothisstep ${TOUCHFILE} ) ; then
+    if [ ${MAPFXN::3} == "bwa" ]; then export BWAIDX=${BT2IDX} ; fi
+    ${MAPFXN} 2> ${MAPERR} 1> ${BAM}
+    touch ${TOUCHFILE}
+  fi
+  #### INDEX
+  ## This step is not necessary, but short, and sometimes useful for other things.
+  update_progress index bam 
+  TOUCHFILE=${ROUNDDIR}/index-bam.done
+  if $( dothisstep ${TOUCHFILE} ) ; then
+    if [ -f ${BAM}.bai ]; then rm ${BAM}.bai ; fi
+    samtools index ${BAM}
+    touch ${TOUCHFILE}
+  fi
+  #### CLEAN
+  update_progress picard mkdup
+  TOUCHFILE=${ROUNDDIR}/picard-mkdup.done
+  if $( dothisstep ${TOUCHFILE} ) ; then
+    picMkDup ${CLEANBAMDIR} ${BAM}
+    touch  ${TOUCHFILE} 
+  fi
+  #### INDEX
+  update_progress index mkdup
+  TOUCHFILE=${ROUNDDIR}/index-cleanbam.done
+  if $( dothisstep ${TOUCHFILE} ) ; then
+    if [ -f ${CLEANBAM}.bai ]; then rm ${CLEANBAM}.bai ; fi
+    samtools index ${CLEANBAM}     
+    touch ${TOUCHFILE}
+  fi
+  #### PILON
+  #### Break assembly fasta up into one file per contig ; this can help keep pilon resource demands lower, and allows for parallelization otherwise.
+  update_progress splitting up assembly into individual seq files
+  TOUCHFILE=${ROUNDDIR}/asm-split.done
+  if $( dothisstep ${TOUCHFILE} ) ; then
+    multiFasta2manyFastas.py -f ${ASM} --dir ${SPLITASMDIR}
+    touch ${TOUCHFILE}
+  fi
+  #### Pilon process contigs individually, optionally put in bg here for parallelization, and optionally use pause to limit njobs.
+  update_progress pilon
+  TOUCHFILE=${ROUNDDIR}/pilon.done
+  if $( dothisstep ${TOUCHFILE} ) ; then
+    run_pilon_loop_on_split_asm
+    touch  ${TOUCHFILE} 
+  fi
+
+  ## MERGE SEPARATE PILON RESULTS
+  update_progress making new asm fasta
+  cat ${PILONDIR}/*fasta > ${ROUNDDIR}/${PRE}.fasta
+}
+
+
+function generic_pilon_polishing_routine_iterator {
+  ## Assumes a lot in the ENV
+  ## PRE, R1, and R2 as it would be in read_map_loop (e.g. instead of putting in 3-col FOFN, will already be in ENV).
+  ## Expected in ENV:
+  ## ASM P PILONJX PILONJAR BT2 PIC
+  ##	- ASM is the initial assebly fasta ; this will be split up for Pilon
+  ##	- P threads
+  ##	- PILONJX - Pilon memory
+  ##	- PILONJAR - Pilon Jar
+  ##	- BT2 - Bowtie2 path
+  ##	- PIC - Picard Jar
+  ## SHOULD BE IN ENV BUT WILL USE DEFAULTS OTHERWISE:
+  ##	MAIN BT2IDX MAXFRAG MINMAPQ MINBQ FLANK 
+  ##	- ROUNDS	- Do this many polishing rounds ; defaults to 1.
+  ##	- MAIN is just the top level dir ; if not given it will be ./
+  ##	- BT2IDX is precomputed bowtie2 index for input assembly ; if not present, will be made....
+  ##	- MAXFRAG	- maxfraglen for concordant, defaults to 600 
+  ##	- MINMAPQ	- min mapping quality to consider for polishing ; defaults to 30
+  ##	- MINBQ		- min basecall quality to use for polishing ; defaults to 20
+  ##	- FLANK		- bp to trim from alignment to avoid end-align problems; defaults to 10
+  ##	- FIX		- fix what ; default = bases (only thing recommended for most polishing)
+  ##	- MAPFXN	- defaults to:::	 bowtie2_PE_endtoend_veryfast_concordant_frags_mapqfilt
+  ##			- E.g. bowtie2_PE_endtoend_ultra_sensitive_concordant_frags_mapqfilt	:: Need MAXFRAG AND MINMAPQ in ENV
+  ##			- E.g. bowtie2_PE_endtoend_veryfast_concordant_frags_mapqfilt		:: Need MAXFRAG AND MINMAPQ in ENV
+  ##	- PILONFXN	- defaults to diploid_pilon_PE_nostrays
+  ##				- Also try: 
+  ##				- standard_pilon_PE_nostrays  (same as diploid_pilon_PE_nostrays but --diploid flag not used)
+  ##				- generic_pilon_PE ( similar to standard_pilon_PE_nostrays, but --changes --vcf --diploid --nostrays are not used)
+  ##	- CONTINUE		- Continue from first incomplete step found...
+  ## Example use would be to populate all these in script above running this function -- export:
+  ##	ROUNDS ASM P PILONJX PILONJAR BT2 PIC MAIN BT2IDX MAXFRAG MINMAPQ MINBQ FLANK MAPFXN PILONFXN
+
+  ## DEBUG
+  if [ ! -z ${DEBUG} ]; then 
+    for VAR in ROUNDS ASM P PILONJX PILONJAR BT2 PIC MAIN BT2IDX MAXFRAG MINMAPQ MINBQ FLANK FIX MAPFXN PILONFXN ; do echo -e "${VAR}\t${!VAR}" ; done ; echo
+  fi
+
+  ## DEFAULTS
+  MAKEBT2IDX=false
+  if [ -z ${ROUNDS} ]; then ROUNDS=1  ; fi
+  if [ -z ${MAIN} ];   then MAIN="./" ; fi
+  if [ -z ${BT2IDX} ]; then MAKEBT2IDX=true ; fi
+  if [ -z ${MAXFRAG} ]; then MAXFRAG=600 ; fi
+  if [ -z ${MINMAPQ} ]; then MINMAPQ=30 ; fi
+  if [ -z ${MINBQ} ]; then MINBQ=20 ; fi
+  if [ -z ${FLANK} ]; then FLANK=10 ; fi
+  if [ -z ${FIX} ]; then FIX=bases ; fi
+  if [ -z ${MAPFXN} ]; then MAPFXN=bowtie2_PE_endtoend_veryfast_concordant_frags_mapqfilt ; fi
+  if [ -z ${PILONFXN} ]; then PILONFXN=diploid_pilon_PE_nostrays ; fi
+  if [ -z ${CONTINUE} ]; then CONTINUE=false ; fi
+  ##if [ -z ${} ]; then = ; fi
+
+  ## DEBUG
+  if [ ! -z ${DEBUG} ]; then 
+    for VAR in ROUNDS ASM P PILONJX PILONJAR BT2 PIC MAIN BT2IDX MAXFRAG MINMAPQ MINBQ FLANK FIX MAPFXN PILONFXN ; do echo -e "${VAR}\t${!VAR}" ; done; echo
+  fi
+
+  ## CHECKS
+  PROCEED=true
+  PLEASEPROVIDE=""
+  for VAR in ASM P PILONJX PILONJAR BT2 PIC ; do 
+    if [ -z ${!VAR} ]; then PROCEED=false  ; PLEASEPROVIDE+="${VAR} " ; fi
+  done
+
+  ## PREPS
+  mkdir -p ${MAIN}
+
+  ## RUN
+  if ${PROCEED}; then 
+    for ROUND in $( seq 1 ${ROUNDS} ) ; do
+      for VAR in ROUND ROUNDS ASM P PILONJX PILONJAR BT2 PIC MAIN BT2IDX MAXFRAG MINMAPQ MINBQ FLANK FIX MAPFXN PILONFXN ; do echo -e "${VAR}\t${!VAR}" ; done
+      ROUNDDIR=${MAIN}/round_${ROUND}
+      PROGRESS=${MAIN}/progress.txt ; 
+      update_progress Round ${ROUND}
+      generic_pilon_polishing_routine ${ROUNDDIR}
+      ## Update vars for subsequent ROUND
+      export ASM=${ROUNDDIR}/${PRE}.fasta
+      export MAKEBT2IDX=true
+    done
+
+  else
+   echo -e "REQUIRED VAR NOT FOUND IN ENV.\nPlease provide: ${PLEASEPROVIDE}"
+  fi
+}
+
+
+
+
+
+function ultrasensitive_endtoend_conservative_PE_pilon_polishing_routine_iterator {
+  ## For help, See: generic_pilon_polishing_routine_iterator
+  export MAXFRAG=600
+  export MINMAPQ=30
+  export MINBQ=20
+  export FLANK=10
+  export MAPFXN=bowtie2_PE_endtoend_ultra_sensitive_concordant_frags_mapqfilt
+  ## RUN
+  generic_pilon_polishing_routine_iterator
+}
+
+
+
