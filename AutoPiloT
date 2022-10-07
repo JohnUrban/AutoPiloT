@@ -149,7 +149,7 @@ while getopts "i:1:2:t:r:m:Q:q:f:F:J:ST:M:v" arg; do
         1) export R1=${OPTARG} ; export PAIRED=true ;; 
         2) export R2=${OPTARG} ; export PAIRED=true ;; 
         t) export THREADS=${OPTARG} ; export P=${OPTARG} ;;	
-        r) export ${ROUNDS}=${OPTARG} ;;
+        r) export ROUNDS=${OPTARG} ;;
         m) export MAXFRAG=${OPTARG} ;;
         Q) export MINMAPQ=${OPTARG} ;;
         q) export MINBQ=${OPTARG} ;;
