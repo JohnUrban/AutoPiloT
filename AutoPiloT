@@ -47,22 +47,6 @@ function help {
 			# bowtie2_PE_local_veryfast_concordant_frags_mapqfilt
 			# bowtie2_PE_local_verysensitive_concordant_frags_mapqfilt
 			# bwa_mem_standard_concordant_frags_mapqfilt
-			Recommendation: 
-			- With long reads now high accuracy, resulting long read assemblies are already >QV20 after assembly.
-			- Short read polishing is less important now than it was when long reads were noisy, but they still help.
-			- The best way to use short reads now is conservatively.
-			- That is to use only high confident mappings, and only the high confidence bases (e.g. MAPQ>20, BQ>20)
-			- It also means to use only concordantly mapped paired reads (if reads are paired, and they should be).
-				- And not to use discordantly mapped reads, orphaned reads, strays, etc.
-			- In addition, it means we should require reads to map end-to-end, and not use split reads.
-				- Adapters are typically pre-trimmed by Illumina software these days, but if not, chuck the read.
-			- Finally, my testing suggests little difference between --very-fast vs --very-sensitive parameters in bowtie2 mapping.
-			- But any difference favors --very-fast. This may be b/c there are fewer reads force-mapped to the wrong spot.
-			- It may also be b/c fewer alternative mappings are found, resulting in higher MAPQ and fewer reads lost to filtering MAPQ.
-			- All Bowtie2 functions seem to do better than the BWA one.
-			- Endtoend mode does better than local mode.
-			- --very-fast and --very-sensitive do mostly the same.
-			- Hence the default: bowtie2_PE_endtoend_veryfast_concordant_frags_mapqfilt
 	-J	PILONKX	: Default = 8G.
 	-S	SLURM	: Use to launch SLURM batch scripts (one per assembly in FOFN) instead of processing serially in current env. Default = false.
 	-T	TIME	: Time limit for SLURM. Default = 24:00:00 .
@@ -72,6 +56,22 @@ function help {
 }
 
 
+#			Recommendation: 
+#			- With long reads now high accuracy, resulting long read assemblies are already >QV20 after assembly.
+#			- Short read polishing is less important now than it was when long reads were noisy, but they still help.
+#			- The best way to use short reads now is conservatively.
+#			- That is to use only high confident mappings, and only the high confidence bases (e.g. MAPQ>20, BQ>20)
+#			- It also means to use only concordantly mapped paired reads (if reads are paired, and they should be).
+#				- And not to use discordantly mapped reads, orphaned reads, strays, etc.
+#			- In addition, it means we should require reads to map end-to-end, and not use split reads.
+#				- Adapters are typically pre-trimmed by Illumina software these days, but if not, chuck the read.
+#			- Finally, my testing suggests little difference between --very-fast vs --very-sensitive parameters in bowtie2 mapping.
+#			- But any difference favors --very-fast. This may be b/c there are fewer reads force-mapped to the wrong spot.
+#			- It may also be b/c fewer alternative mappings are found, resulting in higher MAPQ and fewer reads lost to filtering MAPQ.
+#			- All Bowtie2 functions seem to do better than the BWA one.
+#			- Endtoend mode does better than local mode.
+#			- --very-fast and --very-sensitive do mostly the same.
+#			- Hence the default: bowtie2_PE_endtoend_veryfast_concordant_frags_mapqfilt
 
 #########################################################################################################
 ## FIND DEPENDENCIES
