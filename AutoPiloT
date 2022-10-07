@@ -85,7 +85,7 @@ export PY3=$( which python3 )
 for VAR in BT2 BWA SAMTOOLS PY3 ; do echo -e "${VAR}\t${!VAR}" ; done
 if [ -z ${BT2} ] && [ -z ${BWA} ]; then echo "Please put either bowtie2, bwa, or both in your PATH. Then retry. Example: export PATH=/path/to/bowtie2folder/:/path/to/bwafolder/:\${PATH}" ; exit ; fi
 if [ -z ${SAMTOOLS} ]; then echo "Please put samtools in your PATH. Then retry. Example: export PATH=/path/to/samtools/bin/:\${PATH}" ; exit ; fi
-if [ -z ${PY3} ]; then echo "Please put python3 in your PATH. Then retry. Perhaps install python3 conda environment with \"conda create -n py3 python=3\" ; exit ; fi
+if [ -z ${PY3} ]; then echo "Please put python3 in your PATH. Then retry. Perhaps install python3 conda environment with \"conda create -n py3 python=3\" ..." ; exit ; fi
 
 
 
