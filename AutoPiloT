@@ -13,6 +13,7 @@ export PILONFXNS=${UTILS}/pilon-functions.txt
 export PILONJAR=${UTILS}/pilon-1.24.jar		## Provided but user will still have option to specify diff path.
 export PIC=${UTILS}/picard.jar			## Provided but user will still have option to specify diff path.
 export PATH=${UTILS}:${PATH}
+source ${PILONFXNS}
 
 #########################################################################################################
 ## HELP FUNCTION
@@ -220,7 +221,7 @@ export MAPFXN=${MAPFXN}
 export PRE=${PRE}
 export SUBDIR=${SUBDIR}
 export ASM=${ASM}
-  
+source ${PILONFXNS}  
 generic_pilon_polishing_routine_iterator
 "
 }
