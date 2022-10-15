@@ -12,8 +12,17 @@ AutoPiloT : Automated Pilon Tool. Index, map, filter, polish. Repeat.
 	Usage: 
 		AutoPiloT -i asm.fofn -1 R1 -2 R2 [options t:r:m:Q:q:f:F:J:ST:M:v]
 
+
 	Quick Start:
 		AutoPiloT -i asm.fofn -1 R1 -2 R2
+
+
+        Running on SLURM:
+                 $( basename ${0} ) -i asm.fofn -1 R1 -2 R2 -S
+
+
+        Resume a job that didn't finish (e.g. that was killed by SLURM) by simply re-running the command again.
+                $( basename ${0} ) -i asm.fofn -1 R1 -2 R2 [-S]
 
 
         Options:
